@@ -21,7 +21,7 @@
 // https://github.com/GoogleChrome/sw-toolbox project.
 // That sw-toolbox.js script must be executed first, so it needs to be listed before this in the
 // importScripts() call that the parent service worker makes.
-(function(global) {
+(function (global) {
   'use strict';
 
   // See https://github.com/GoogleChrome/sw-toolbox/blob/6e8242dc328d1f1cfba624269653724b26fa94f1/README.md#toolboxroutergeturlpattern-handler-options

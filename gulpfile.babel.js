@@ -33,6 +33,9 @@ import swPrecache from 'sw-precache';
 import gulpLoadPlugins from 'gulp-load-plugins';
 import {output as pagespeed} from 'psi';
 import pkg from './package.json';
+import browserify from 'browserify';
+import source from 'vinyl-source-stream';
+import buffer from 'vinyl-buffer';
 
 const $ = gulpLoadPlugins();
 const reload = browserSync.reload;
@@ -101,29 +104,39 @@ gulp.task('styles', () => {
     .pipe(gulp.dest('dist/styles'));
 });
 
-// Concatenate and minify JavaScript. Optionally transpiles ES2015 code to ES5.
-// to enable ES2015 support remove the line `"only": "gulpfile.babel.js",` in the
-// `.babelrc` file.
-gulp.task('scripts', () =>
-    gulp.src([
-      // Note: Since we are not using useref in the scripts build pipeline,
-      //       you need to explicitly list your scripts here in the right order
-      //       to be correctly concatenated
-      './app/scripts/main.js'
-      // Other scripts
-    ])
-      .pipe($.newer('.tmp/scripts'))
-      .pipe($.sourcemaps.init())
-      .pipe($.babel())
-      .pipe($.sourcemaps.write())
+function buildScripts(debug) {
+  var b = browserify('./app/scripts/main/index.js', {
+    debug: debug,
+    cache: {},
+    packageCache: {}
+  });
+  if (debug) {
+    b = b.transform('babelify')
+      .plugin('watchify')
+      .on('update', bundle);
+  } else {
+    b = b.transform('rollupify')
+      .transform('babelify')
+      .transform('uglifyify')
+      .plugin('bundle-collapser/plugin');
+  }
+  function bundle() {
+    return b.bundle().pipe(source('main.min.js'))
+      .pipe(buffer())
       .pipe(gulp.dest('.tmp/scripts'))
-      .pipe($.concat('main.min.js'))
-      .pipe($.uglify({preserveComments: 'some'}))
-      // Output files
       .pipe($.size({title: 'scripts'}))
-      .pipe($.sourcemaps.write('.'))
-      .pipe(gulp.dest('dist/scripts'))
-);
+      .pipe(gulp.dest('dist/scripts'));
+  }
+  return bundle();
+}
+
+gulp.task('scripts-debug', () => {
+  return buildScripts(true);
+});
+
+gulp.task('scripts', () => {
+  return buildScripts(false);
+});
 
 // Scan your HTML for assets & optimize them
 gulp.task('html', () => {
@@ -163,7 +176,7 @@ gulp.task('html', () => {
 gulp.task('clean', () => del(['.tmp', 'dist/*', '!dist/.git'], {dot: true}));
 
 // Watch files for changes & reload
-gulp.task('serve', ['scripts', 'styles'], () => {
+gulp.task('serve', ['scripts-debug', 'styles'], () => {
   browserSync({
     notify: false,
     // Customize the Browsersync console logging prefix
@@ -180,7 +193,7 @@ gulp.task('serve', ['scripts', 'styles'], () => {
 
   gulp.watch(['app/**/*.html'], reload);
   gulp.watch(['app/styles/**/*.{scss,css}'], ['styles', reload]);
-  gulp.watch(['app/scripts/**/*.js'], ['lint', 'scripts']);
+  gulp.watch(['app/scripts/**/*.js'], ['lint']);
   gulp.watch(['app/images/**/*'], reload);
 });
 
